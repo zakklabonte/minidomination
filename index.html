@@ -27,106 +27,114 @@
   <div id="messages"></div>
 </div>
 
-<script src="https://unpkg.com/tmi.js@1.8.5/dist/tmi.min.js" onerror="alert('Failed to load tmi.js')"></script>
 <script>
   window.onload = () => {
-    const connectBtn = document.getElementById('connectBtn');
-    const loginDiv = document.getElementById('login');
-    const gameDiv = document.getElementById('game');
-    const mapDiv = document.getElementById('map');
-    const messagesDiv = document.getElementById('messages');
+    // Dynamically load tmi.js
+    const script = document.createElement('script');
+    script.src = "https://unpkg.com/tmi.js@1.8.5/dist/tmi.min.js";
+    script.onload = () => {
+      // Now tmi is loaded, run your code here
 
-    let client, channelName;
-    let territories = Array(25).fill(null); // 5x5 grid
-    let players = {};
+      const connectBtn = document.getElementById('connectBtn');
+      const loginDiv = document.getElementById('login');
+      const gameDiv = document.getElementById('game');
+      const mapDiv = document.getElementById('map');
+      const messagesDiv = document.getElementById('messages');
 
-    function updateMap() {
-      mapDiv.innerHTML = '';
-      territories.forEach((owner, i) => {
-        const div = document.createElement('div');
-        div.className = 'territory';
-        div.textContent = i + 1;
-        div.style.background = owner ? owner.color : '#333';
-        div.title = owner ? owner.name : 'Neutral';
-        mapDiv.appendChild(div);
-      });
-    }
+      let client, channelName;
+      let territories = Array(25).fill(null); // 5x5 grid
+      let players = {};
 
-    function addMessage(text) {
-      const p = document.createElement('p');
-      p.textContent = text;
-      messagesDiv.appendChild(p);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
+      function updateMap() {
+        mapDiv.innerHTML = '';
+        territories.forEach((owner, i) => {
+          const div = document.createElement('div');
+          div.className = 'territory';
+          div.textContent = i + 1;
+          div.style.background = owner ? owner.color : '#333';
+          div.title = owner ? owner.name : 'Neutral';
+          mapDiv.appendChild(div);
+        });
+      }
 
-    function handleCommand(user, command, args) {
-      if (command === '!dom') {
-        const subcommand = args[0];
-        if (subcommand === 'join') {
-          const color = args[1] || '#' + Math.floor(Math.random() * 16777215).toString(16);
-          players[user] = { name: user, color };
-          addMessage(`${user} joined with color ${color}`);
-          updateMap();
-        } else if (subcommand === 'attack') {
-          if (!players[user]) {
-            addMessage(`${user} must join first (!dom join #hexcolor)`);
-            return;
+      function addMessage(text) {
+        const p = document.createElement('p');
+        p.textContent = text;
+        messagesDiv.appendChild(p);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      function handleCommand(user, command, args) {
+        if (command === '!dom') {
+          const subcommand = args[0];
+          if (subcommand === 'join') {
+            const color = args[1] || '#' + Math.floor(Math.random() * 16777215).toString(16);
+            players[user] = { name: user, color };
+            addMessage(`${user} joined with color ${color}`);
+            updateMap();
+          } else if (subcommand === 'attack') {
+            if (!players[user]) {
+              addMessage(`${user} must join first (!dom join #hexcolor)`);
+              return;
+            }
+            const pos = parseInt(args[1]);
+            if (!pos || pos < 1 || pos > 25) {
+              addMessage('Invalid position to attack. Choose 1-25.');
+              return;
+            }
+            territories[pos - 1] = players[user];
+            addMessage(`${user} conquered territory ${pos}`);
+            updateMap();
+          } else if (subcommand === 'score') {
+            const scores = {};
+            territories.forEach(owner => {
+              if (owner) scores[owner.name] = (scores[owner.name] || 0) + 1;
+            });
+            let scoreText = 'Scores: ';
+            for (const p in scores) scoreText += `${p}: ${scores[p]}  `;
+            addMessage(scoreText);
           }
-          const pos = parseInt(args[1]);
-          if (!pos || pos < 1 || pos > 25) {
-            addMessage('Invalid position to attack. Choose 1-25.');
-            return;
-          }
-          territories[pos - 1] = players[user];
-          addMessage(`${user} conquered territory ${pos}`);
-          updateMap();
-        } else if (subcommand === 'score') {
-          const scores = {};
-          territories.forEach(owner => {
-            if (owner) scores[owner.name] = (scores[owner.name] || 0) + 1;
-          });
-          let scoreText = 'Scores: ';
-          for (const p in scores) scoreText += `${p}: ${scores[p]}  `;
-          addMessage(scoreText);
         }
       }
-    }
 
-    connectBtn.onclick = () => {
-      channelName = document.getElementById('channel').value.trim().toLowerCase();
-      const token = document.getElementById('token').value.trim();
+      connectBtn.onclick = () => {
+        channelName = document.getElementById('channel').value.trim().toLowerCase();
+        const token = document.getElementById('token').value.trim();
 
-      if (!channelName || !token) {
-        alert('Please enter channel and OAuth token');
-        return;
-      }
+        if (!channelName || !token) {
+          alert('Please enter channel and OAuth token');
+          return;
+        }
 
-      client = new tmi.Client({
-        options: { debug: true },
-        connection: { reconnect: true, secure: true },
-        identity: {
-          username: channelName,
-          password: token
-        },
-        channels: [channelName]
-      });
+        client = new tmi.Client({
+          options: { debug: true },
+          connection: { reconnect: true, secure: true },
+          identity: {
+            username: channelName,
+            password: token
+          },
+          channels: [channelName]
+        });
 
-      client.connect().then(() => {
-        addMessage('Connected to Twitch chat!');
-        loginDiv.style.display = 'none';
-        gameDiv.style.display = 'block';
-      }).catch(err => alert('Connection failed: ' + err));
+        client.connect().then(() => {
+          addMessage('Connected to Twitch chat!');
+          loginDiv.style.display = 'none';
+          gameDiv.style.display = 'block';
+        }).catch(err => alert('Connection failed: ' + err));
 
-      client.on('message', (channel, tags, message, self) => {
-        if (self) return;
-        const msg = message.trim().split(' ');
-        const command = msg[0].toLowerCase();
-        const args = msg.slice(1);
-        handleCommand(tags.username, command, args);
-      });
+        client.on('message', (channel, tags, message, self) => {
+          if (self) return;
+          const msg = message.trim().split(' ');
+          const command = msg[0].toLowerCase();
+          const args = msg.slice(1);
+          handleCommand(tags.username, command, args);
+        });
+      };
+
+      updateMap();
     };
-
-    updateMap();
+    script.onerror = () => alert('Failed to load tmi.js');
+    document.head.appendChild(script);
   };
 </script>
 
